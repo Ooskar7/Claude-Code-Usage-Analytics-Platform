@@ -14,6 +14,8 @@ JsonObject = dict[str, Any]
 class ParsedBatch:
     line_number: int
     batch: JsonObject
+    source: str | None = None
+    raw_line: str | None = None
 
 
 @dataclass(frozen=True)
@@ -48,7 +50,7 @@ def parse_batch_line(line: str, line_number: int) -> ParsedBatch:
     if not isinstance(log_events, list):
         raise ValueError(f"line {line_number}: logEvents must be a list")
 
-    return ParsedBatch(line_number=line_number, batch=batch)
+    return ParsedBatch(line_number=line_number, batch=batch, raw_line=line)
 
 
 def iter_jsonl_batches(path: str | Path) -> Iterable[ParsedBatch | ParseError]:
@@ -59,9 +61,21 @@ def iter_jsonl_batches(path: str | Path) -> Iterable[ParsedBatch | ParseError]:
             if not stripped:
                 continue
             try:
-                yield parse_batch_line(stripped, line_number)
+                parsed = parse_batch_line(stripped, line_number)
+                yield ParsedBatch(
+                    line_number=parsed.line_number,
+                    batch=parsed.batch,
+                    source=source,
+                    raw_line=parsed.raw_line,
+                )
             except ValueError as exc:
-                yield ParseError(source=source, line_number=line_number, event_index=None, message=str(exc), raw_value=stripped)
+                yield ParseError(
+                    source=source,
+                    line_number=line_number,
+                    event_index=None,
+                    message=str(exc),
+                    raw_value=stripped,
+                )
 
 
 def parse_nested_message(log_event: JsonObject, line_number: int, event_index: int) -> JsonObject:

@@ -21,7 +21,7 @@ realistic-data:
 	$(PYTHON) claude_code_telemetry/generate_fake_data.py --num-users 100 --num-sessions 5000 --days 60 --output-dir $(RAW_DIR) --seed 42
 
 test:
-	PYTHONPATH=src $(PYTHON) -m pytest
+	PYTHONPATH=src $(PYTHON) -m unittest discover -s tests -p 'test_*.py'
 
 lint:
 	PYTHONPATH=src ruff check .

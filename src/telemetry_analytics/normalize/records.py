@@ -8,6 +8,14 @@ from typing import Any
 JsonObject = dict[str, Any]
 
 
+def clean_mapping(value: Any) -> JsonObject:
+    return value if isinstance(value, dict) else {}
+
+
+def as_json(value: Any) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"))
+
+
 def parse_utc_timestamp(value: str | None) -> datetime | None:
     if not value:
         return None
@@ -44,9 +52,9 @@ def parse_bool(value: Any) -> bool | None:
 
 
 def normalize_common_event(event_id: str, log_event_id: str, message: JsonObject) -> JsonObject:
-    attributes = message.get("attributes") or {}
-    resource = message.get("resource") or {}
-    scope = message.get("scope") or {}
+    attributes = clean_mapping(message.get("attributes"))
+    resource = clean_mapping(message.get("resource"))
+    scope = clean_mapping(message.get("scope"))
 
     return {
         "event_id": event_id,
@@ -70,13 +78,13 @@ def normalize_common_event(event_id: str, log_event_id: str, message: JsonObject
         "service_version": resource.get("service.version"),
         "user_profile": resource.get("user.profile"),
         "user_serial": resource.get("user.serial"),
-        "attributes_json": json.dumps(attributes, sort_keys=True),
-        "resource_json": json.dumps(resource, sort_keys=True),
+        "attributes_json": as_json(attributes),
+        "resource_json": as_json(resource),
     }
 
 
 def normalize_event_specific(event_id: str, message: JsonObject) -> tuple[str, JsonObject] | None:
-    attributes = message.get("attributes") or {}
+    attributes = clean_mapping(message.get("attributes"))
     body = message.get("body")
 
     if body == "claude_code.api_request":

@@ -17,7 +17,6 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-  "pytest>=8.2",
   "ruff>=0.5",
 ]
 
@@ -26,9 +25,6 @@ telemetry-analytics = "telemetry_analytics.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 100

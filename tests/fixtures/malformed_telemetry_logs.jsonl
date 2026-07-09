@@ -1,0 +1,2 @@
+{"messageType":"DATA_MESSAGE","logEvents":[{"id":"bad-message","timestamp":1767261600000,"message":"{not json"}],"year":2026,"month":1,"day":1}
+{"messageType":"DATA_MESSAGE"}
