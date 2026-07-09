@@ -1,0 +1,4 @@
+interface:
+  display_name: "Telemetry Analysis"
+  short_description: "Analyze nested Claude Code telemetry data"
+  default_prompt: "Use $telemetry-analysis to ingest Claude Code telemetry logs, normalize events, and build usage metrics."
