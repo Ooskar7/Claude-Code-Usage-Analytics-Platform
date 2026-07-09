@@ -16,17 +16,33 @@ make init-db
 
 ## Dataset Commands
 
-Generate a deterministic fixture-sized dataset:
+Generate both local datasets:
+
+```bash
+make generate-data
+```
+
+Generate a deterministic fixture-sized dataset in `data/sample` with seed `7`:
 
 ```bash
 make sample-data
 ```
 
-Generate a realistic local dataset:
+This writes:
+
+- `data/sample/telemetry_logs.jsonl`
+- `data/sample/employees.csv`
+
+Generate a realistic local dataset in `data/raw` with seed `42`:
 
 ```bash
 make realistic-data
 ```
+
+This writes:
+
+- `data/raw/telemetry_logs.jsonl`
+- `data/raw/employees.csv`
 
 Generated telemetry files are intentionally ignored by Git. Keep small deterministic fixtures under `tests/fixtures/` when tests need committed data.
 
