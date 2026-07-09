@@ -1,0 +1,14 @@
+.DS_Store
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Generated telemetry datasets and local DuckDB files.
+data/raw/*
+data/sample/*
+data/warehouse/*
+!data/raw/.gitkeep
+!data/sample/.gitkeep
+!data/warehouse/.gitkeep
