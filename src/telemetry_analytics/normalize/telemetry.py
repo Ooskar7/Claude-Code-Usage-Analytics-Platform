@@ -16,8 +16,21 @@ from telemetry_analytics.normalize.records import as_json, normalize_common_even
 JsonObject = dict[str, Any]
 
 
+class TelemetryValidationError(ValueError):
+    """Raised when a parsed telemetry event is missing required common fields."""
+
+
 @dataclass(frozen=True)
 class NormalizationError:
+    source: str
+    line_number: int | None
+    event_index: int | None
+    message: str
+    raw_message: JsonObject | None = None
+
+
+@dataclass(frozen=True)
+class ValidationError:
     source: str
     line_number: int | None
     event_index: int | None
@@ -37,6 +50,7 @@ class NormalizedTelemetry:
     user_prompts: list[JsonObject] = field(default_factory=list)
     employees: list[JsonObject] = field(default_factory=list)
     parse_errors: list[ParseError] = field(default_factory=list)
+    validation_errors: list[ValidationError] = field(default_factory=list)
     normalization_errors: list[NormalizationError] = field(default_factory=list)
 
     def add_event_specific(self, table_name: str, row: JsonObject) -> None:
@@ -113,6 +127,7 @@ def normalize_parsed_log_event(
     parsed_event: ParsedLogEvent,
     normalized: NormalizedTelemetry,
 ) -> None:
+    validate_common_message(parsed_event.message)
     raw_log_event = normalize_raw_log_event(
         source_file,
         parsed_batch,
@@ -121,16 +136,37 @@ def normalize_parsed_log_event(
         parsed_event.message,
         parse_status="parsed",
     )
-    normalized.raw_log_events.append(raw_log_event)
 
     event_id = raw_log_event["log_event_id"]
     event_row = normalize_common_event(event_id, raw_log_event["log_event_id"], parsed_event.message)
-    normalized.events.append(event_row)
 
     specific = normalize_event_specific(event_id, parsed_event.message)
+    normalized.raw_log_events.append(raw_log_event)
+    normalized.events.append(event_row)
     if specific is not None:
         table_name, row = specific
         normalized.add_event_specific(table_name, row)
+
+
+def validate_common_message(message: JsonObject) -> None:
+    if not isinstance(message.get("body"), str) or not message.get("body"):
+        raise TelemetryValidationError("missing required common field: body")
+
+    attributes = message.get("attributes")
+    if not isinstance(attributes, dict):
+        raise TelemetryValidationError("missing required common field: attributes")
+
+    required_attributes = [
+        "event.timestamp",
+        "event.name",
+        "organization.id",
+        "session.id",
+        "user.email",
+        "user.id",
+    ]
+    missing = [field_name for field_name in required_attributes if not attributes.get(field_name)]
+    if missing:
+        raise TelemetryValidationError(f"missing required common field(s): {', '.join(missing)}")
 
 
 def add_parse_error_log_event(
@@ -151,5 +187,45 @@ def add_parse_error_log_event(
             None,
             parse_status="parse_error",
             parse_error=parse_error.message,
+        )
+    )
+
+
+def add_validation_error_log_event(
+    source_file: str,
+    parsed_batch: ParsedBatch,
+    parsed_event: ParsedLogEvent,
+    error_message: str,
+    normalized: NormalizedTelemetry,
+) -> None:
+    normalized.raw_log_events.append(
+        normalize_raw_log_event(
+            source_file,
+            parsed_batch,
+            parsed_event.event_index,
+            parsed_event.log_event,
+            parsed_event.message,
+            parse_status="validation_error",
+            parse_error=error_message,
+        )
+    )
+
+
+def add_normalization_error_log_event(
+    source_file: str,
+    parsed_batch: ParsedBatch,
+    parsed_event: ParsedLogEvent,
+    error_message: str,
+    normalized: NormalizedTelemetry,
+) -> None:
+    normalized.raw_log_events.append(
+        normalize_raw_log_event(
+            source_file,
+            parsed_batch,
+            parsed_event.event_index,
+            parsed_event.log_event,
+            parsed_event.message,
+            parse_status="normalization_error",
+            parse_error=error_message,
         )
     )

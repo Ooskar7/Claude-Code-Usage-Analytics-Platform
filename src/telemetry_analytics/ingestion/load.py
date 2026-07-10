@@ -12,7 +12,11 @@ from telemetry_analytics.ingestion.parser import (
 from telemetry_analytics.normalize.telemetry import (
     NormalizationError,
     NormalizedTelemetry,
+    TelemetryValidationError,
+    ValidationError,
+    add_normalization_error_log_event,
     add_parse_error_log_event,
+    add_validation_error_log_event,
     normalize_parsed_batch,
     normalize_parsed_log_event,
 )
@@ -21,8 +25,20 @@ from telemetry_analytics.normalize.telemetry import (
 def load_telemetry_jsonl(path: str | Path) -> NormalizedTelemetry:
     source_file = str(path)
     normalized = NormalizedTelemetry()
+    telemetry_path = Path(path)
 
-    for batch_item in iter_jsonl_batches(path):
+    if not telemetry_path.exists():
+        normalized.validation_errors.append(
+            ValidationError(
+                source=source_file,
+                line_number=None,
+                event_index=None,
+                message=f"missing input file: {telemetry_path}",
+            )
+        )
+        return normalized
+
+    for batch_item in iter_jsonl_batches(telemetry_path):
         if isinstance(batch_item, ParseError):
             normalized.parse_errors.append(batch_item)
             continue
@@ -38,8 +54,50 @@ def load_telemetry_dataset(
     employees_path: str | Path,
 ) -> NormalizedTelemetry:
     normalized = load_telemetry_jsonl(telemetry_path)
-    normalized.employees.extend(load_employees_csv(employees_path))
+    employees_file = Path(employees_path)
+    if not employees_file.exists():
+        normalized.validation_errors.append(
+            ValidationError(
+                source=str(employees_file),
+                line_number=None,
+                event_index=None,
+                message=f"missing input file: {employees_file}",
+            )
+        )
+        return normalized
+
+    try:
+        employees = load_employees_csv(employees_file)
+    except ValueError as exc:
+        normalized.validation_errors.append(
+            ValidationError(
+                source=str(employees_file),
+                line_number=None,
+                event_index=None,
+                message=str(exc),
+            )
+        )
+        employees = []
+
+    normalized.employees.extend(employees)
+    validate_employee_enrichment(normalized)
     return normalized
+
+
+def validate_employee_enrichment(normalized: NormalizedTelemetry) -> None:
+    employee_emails = {employee["email"] for employee in normalized.employees}
+    event_emails = {str(event.get("user_email") or "") for event in normalized.events}
+    missing_employees = sorted(email for email in event_emails if email and email not in employee_emails)
+
+    for email in missing_employees:
+        normalized.validation_errors.append(
+            ValidationError(
+                source="employees",
+                line_number=None,
+                event_index=None,
+                message=f"employee enrichment mismatch: no employees.csv row for {email}",
+            )
+        )
 
 
 def _load_batch_events(
@@ -55,6 +113,23 @@ def _load_batch_events(
 
         try:
             normalize_parsed_log_event(source_file, parsed_batch, event_item, normalized)
+        except TelemetryValidationError as exc:
+            normalized.validation_errors.append(
+                ValidationError(
+                    source=source_file,
+                    line_number=parsed_batch.line_number,
+                    event_index=event_item.event_index,
+                    message=str(exc),
+                    raw_message=event_item.message,
+                )
+            )
+            add_validation_error_log_event(
+                source_file,
+                parsed_batch,
+                event_item,
+                str(exc),
+                normalized,
+            )
         except (TypeError, ValueError) as exc:
             normalized.normalization_errors.append(
                 NormalizationError(
@@ -64,4 +139,11 @@ def _load_batch_events(
                     message=str(exc),
                     raw_message=event_item.message,
                 )
+            )
+            add_normalization_error_log_event(
+                source_file,
+                parsed_batch,
+                event_item,
+                str(exc),
+                normalized,
             )

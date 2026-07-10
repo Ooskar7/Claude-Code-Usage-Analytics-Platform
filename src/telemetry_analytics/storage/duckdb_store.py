@@ -92,6 +92,7 @@ class IngestionSummary:
     db_path: Path
     row_counts: dict[str, int]
     parse_errors: int
+    validation_errors: int
     normalization_errors: int
 
 
@@ -112,6 +113,7 @@ def refresh_database(
         db_path=Path(db_path),
         row_counts=row_counts,
         parse_errors=len(normalized.parse_errors),
+        validation_errors=len(normalized.validation_errors),
         normalization_errors=len(normalized.normalization_errors),
     )
 

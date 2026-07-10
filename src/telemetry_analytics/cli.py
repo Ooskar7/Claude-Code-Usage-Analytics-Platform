@@ -43,6 +43,7 @@ def main(argv: list[str] | None = None) -> int:
         for table_name, row_count in summary.row_counts.items():
             print(f"  {table_name}: {row_count}")
         print(f"  parse_errors: {summary.parse_errors}")
+        print(f"  validation_errors: {summary.validation_errors}")
         print(f"  normalization_errors: {summary.normalization_errors}")
         return 0
 
