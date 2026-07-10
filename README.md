@@ -2,11 +2,23 @@
 
 Streamlit and DuckDB analytics platform for nested Claude Code telemetry logs.
 
-## Current Startup Command
+## One-Command Demo
 
 ```bash
-make dev
+make demo
 ```
+
+`make demo` checks Python dependencies, generates the deterministic sample dataset if it is missing, refreshes `data/processed/telemetry.duckdb`, and starts the Streamlit dashboard.
+
+From a fresh checkout, install dependencies once first:
+
+```bash
+make install-deps
+```
+
+No secrets or external APIs are required.
+
+## Supporting Commands
 
 The app reads `TELEMETRY_DB_PATH`, defaulting to `data/processed/telemetry.duckdb`. Initialize an empty DuckDB warehouse with:
 
@@ -24,6 +36,18 @@ For faster local verification against the small generated dataset:
 
 ```bash
 make ingest-sample
+```
+
+Prepare sample data and DuckDB without starting Streamlit:
+
+```bash
+make demo-data
+```
+
+Remove generated data and local DuckDB files:
+
+```bash
+make clean-data
 ```
 
 ## Dataset Commands
