@@ -6,8 +6,10 @@ from pathlib import Path
 
 from telemetry_analytics.db import connect
 from telemetry_analytics.metrics.duckdb_metrics import (
+    MetricFilters,
     active_users_and_sessions,
     api_error_metrics,
+    available_filter_options,
     cost_token_totals,
     daily_usage_trends,
     environment_breakdown,
@@ -121,6 +123,35 @@ class DuckDBMetricsTest(unittest.TestCase):
         self.assertEqual(environment["terminal_type"][0]["terminal_type"], "vscode")
         self.assertEqual(environment["os_type"][0]["os_type"], "darwin")
         self.assertEqual(environment["service_version"][0]["service_version"], "2.1.39")
+
+    def test_available_filter_options(self) -> None:
+        options = available_filter_options(self.conn)
+
+        self.assertEqual(options["date_range"]["min_date"].isoformat(), "2026-01-01")
+        self.assertEqual(options["date_range"]["max_date"].isoformat(), "2026-01-01")
+        self.assertEqual(options["practices"], ["Data Engineering"])
+        self.assertEqual(options["levels"], ["L5"])
+        self.assertEqual(options["locations"], ["United States"])
+        self.assertEqual(options["models"], ["claude-opus-4-6"])
+
+    def test_filters_apply_consistently(self) -> None:
+        matching = MetricFilters(
+            practices=("Data Engineering",),
+            levels=("L5",),
+            locations=("United States",),
+            models=("claude-opus-4-6",),
+        )
+        non_matching = MetricFilters(practices=("Platform Engineering",))
+
+        self.assertEqual(overview_kpis(self.conn, matching)["total_events"], 5)
+        self.assertEqual(prompt_metrics(self.conn, matching)["prompts"], 1)
+        self.assertEqual(model_usage(self.conn, matching)[0]["model"], "claude-opus-4-6")
+        self.assertEqual(tool_usage(self.conn, matching)[0]["tool_name"], "Read")
+
+        empty = overview_kpis(self.conn, non_matching)
+        self.assertEqual(empty["total_events"], 0)
+        self.assertEqual(empty["active_users"], 0)
+        self.assertEqual(daily_usage_trends(self.conn, non_matching), [])
 
 
 if __name__ == "__main__":

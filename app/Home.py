@@ -15,8 +15,10 @@ if str(SRC_DIR) not in sys.path:
 from telemetry_analytics.config import get_settings
 from telemetry_analytics.db import connect, database_exists, table_exists
 from telemetry_analytics.metrics.duckdb_metrics import (
+    MetricFilters,
     active_users_and_sessions,
     api_error_metrics,
+    available_filter_options,
     cost_token_totals,
     daily_usage_trends,
     environment_breakdown,
@@ -78,6 +80,8 @@ def bar_chart(
     y_title: str | None = None,
     orientation: str = "v",
 ) -> go.Figure:
+    if not rows:
+        return empty_figure(title)
     if orientation == "h":
         fig = go.Figure(go.Bar(x=values(rows, y), y=values(rows, x), orientation="h"))
         fig.update_layout(yaxis={"autorange": "reversed"})
@@ -101,6 +105,8 @@ def line_chart(
     title: str,
     y_title: str,
 ) -> go.Figure:
+    if not rows:
+        return empty_figure(title)
     fig = go.Figure()
     for column in y_columns:
         fig.add_trace(
@@ -130,6 +136,8 @@ def stacked_bar_chart(
     title: str,
     y_title: str,
 ) -> go.Figure:
+    if not rows:
+        return empty_figure(title)
     fig = go.Figure()
     for column in y_columns:
         fig.add_trace(go.Bar(x=values(rows, x), y=values(rows, column), name=column.replace("_", " ").title()))
@@ -145,7 +153,31 @@ def stacked_bar_chart(
     return fig
 
 
+def empty_figure(title: str) -> go.Figure:
+    fig = go.Figure()
+    fig.add_annotation(
+        text="No matching data",
+        x=0.5,
+        y=0.5,
+        xref="paper",
+        yref="paper",
+        showarrow=False,
+        font={"size": 14},
+    )
+    fig.update_layout(
+        title=title,
+        height=320,
+        margin={"l": 20, "r": 20, "t": 48, "b": 20},
+        xaxis={"visible": False},
+        yaxis={"visible": False},
+    )
+    return fig
+
+
 def table(rows: list[dict[str, Any]], *, height: int = 320) -> None:
+    if not rows:
+        st.info("No matching rows for the current filters.")
+        return
     st.dataframe(rows, width="stretch", hide_index=True, height=height)
 
 
@@ -154,30 +186,92 @@ def chart_source(function_name: str) -> None:
 
 
 @st.cache_data(show_spinner=False)
-def load_dashboard_metrics(db_path: str) -> dict[str, Any]:
+def load_filter_options(db_path: str) -> dict[str, Any]:
+    with connect(db_path, read_only=True) as conn:
+        if not table_exists(conn, "events"):
+            return {}
+        return available_filter_options(conn)
+
+
+@st.cache_data(show_spinner=False)
+def load_dashboard_metrics(db_path: str, filters: MetricFilters) -> dict[str, Any]:
     with connect(db_path, read_only=True) as conn:
         if not table_exists(conn, "events"):
             return {"has_events": False}
 
-        kpis = overview_kpis(conn)
+        kpis = overview_kpis(conn, filters)
         if not kpis or not kpis.get("total_events"):
-            return {"has_events": False}
+            return {"has_events": True, "has_matching_events": False, "overview": kpis}
 
         return {
             "has_events": True,
+            "has_matching_events": True,
             "overview": kpis,
-            "daily_usage_trends": daily_usage_trends(conn),
-            "active_users_and_sessions": active_users_and_sessions(conn),
-            "prompt_metrics": prompt_metrics(conn),
-            "cost_token_totals": cost_token_totals(conn),
-            "model_usage": model_usage(conn),
-            "usage_by_practice": usage_by_practice(conn),
-            "usage_by_level": usage_by_level(conn),
-            "usage_by_location": usage_by_location(conn),
-            "tool_usage": tool_usage(conn),
-            "api_error_metrics": api_error_metrics(conn),
-            "environment_breakdown": environment_breakdown(conn),
+            "daily_usage_trends": daily_usage_trends(conn, filters),
+            "active_users_and_sessions": active_users_and_sessions(conn, filters),
+            "prompt_metrics": prompt_metrics(conn, filters),
+            "cost_token_totals": cost_token_totals(conn, filters),
+            "model_usage": model_usage(conn, filters),
+            "usage_by_practice": usage_by_practice(conn, filters),
+            "usage_by_level": usage_by_level(conn, filters),
+            "usage_by_location": usage_by_location(conn, filters),
+            "tool_usage": tool_usage(conn, filters),
+            "api_error_metrics": api_error_metrics(conn, filters),
+            "environment_breakdown": environment_breakdown(conn, filters),
         }
+
+
+def build_filters(options: dict[str, Any]) -> MetricFilters:
+    date_range = options.get("date_range") or {}
+    min_date = date_range.get("min_date")
+    max_date = date_range.get("max_date")
+    selected_dates = (min_date, max_date) if min_date and max_date else None
+
+    with st.sidebar:
+        st.header("Filters")
+        if selected_dates:
+            selected_dates = st.date_input(
+                "Date range",
+                value=selected_dates,
+                min_value=min_date,
+                max_value=max_date,
+            )
+        else:
+            st.caption("No event dates available.")
+
+        practices = st.multiselect("Practice", options.get("practices", []))
+        levels = st.multiselect("Level", options.get("levels", []))
+        locations = st.multiselect("Location", options.get("locations", []))
+        models = st.multiselect("Model", options.get("models", []))
+
+    if isinstance(selected_dates, tuple) and len(selected_dates) == 2:
+        start_date, end_date = selected_dates
+    else:
+        start_date, end_date = min_date, max_date
+
+    return MetricFilters(
+        start_date=start_date,
+        end_date=end_date,
+        practices=tuple(practices),
+        levels=tuple(levels),
+        locations=tuple(locations),
+        models=tuple(models),
+    )
+
+
+def filter_summary(filters: MetricFilters) -> str:
+    parts = []
+    if filters.start_date and filters.end_date:
+        parts.append(f"{filters.start_date} to {filters.end_date}")
+    for label, values_ in [
+        ("practice", filters.practices),
+        ("level", filters.levels),
+        ("location", filters.locations),
+        ("model", filters.models),
+    ]:
+        if values_:
+            parts.append(f"{label}: {', '.join(values_)}")
+    return " | ".join(parts) if parts else "No filters applied"
 
 
 def show_missing_database(db_path: Path) -> None:
@@ -200,6 +294,7 @@ with st.sidebar:
     st.code(str(settings.db_path), language="text")
     if st.button("Refresh dashboard data", width="stretch"):
         load_dashboard_metrics.clear()
+        load_filter_options.clear()
     st.divider()
     st.caption("All charts use the DuckDB metric/query layer.")
 
@@ -211,7 +306,20 @@ if not database_exists(settings.db_path):
     st.stop()
 
 try:
-    metrics = load_dashboard_metrics(str(settings.db_path))
+    filter_options = load_filter_options(str(settings.db_path))
+except Exception as exc:
+    st.error("The dashboard could not inspect the DuckDB database.")
+    st.exception(exc)
+    st.stop()
+
+if not filter_options:
+    show_empty_database(settings.db_path)
+    st.stop()
+
+filters = build_filters(filter_options)
+
+try:
+    metrics = load_dashboard_metrics(str(settings.db_path), filters)
 except Exception as exc:
     st.error("The dashboard could not read the DuckDB database.")
     st.exception(exc)
@@ -219,6 +327,11 @@ except Exception as exc:
 
 if not metrics.get("has_events"):
     show_empty_database(settings.db_path)
+    st.stop()
+
+if not metrics.get("has_matching_events", True):
+    st.info("No telemetry matches the current filters.")
+    st.caption(filter_summary(filters))
     st.stop()
 
 overview = metrics["overview"]
@@ -232,6 +345,7 @@ tabs = st.tabs(["Overview", "Model Usage", "Team/User Insights", "Tool Behavior"
 
 with tabs[0]:
     st.subheader("Overview")
+    st.caption(filter_summary(filters))
     k1, k2, k3, k4, k5, k6 = st.columns(6)
     k1.metric("Active users", fmt_int(overview["active_users"]))
     k2.metric("Sessions", fmt_int(overview["sessions"]))
@@ -273,6 +387,7 @@ with tabs[0]:
         chart_source("daily_usage_trends")
 
     st.subheader("Session and prompt profile")
+    st.caption("Rates use the visible filtered sessions and requests as denominators.")
     session_metrics = metrics["active_users_and_sessions"]
     prompt_stats = metrics["prompt_metrics"]
     cost_tokens = metrics["cost_token_totals"]
@@ -284,6 +399,7 @@ with tabs[0]:
 
 with tabs[1]:
     st.subheader("Model Usage")
+    st.caption("Model rates use API requests in the current filter context.")
     c1, c2 = st.columns(2)
     with c1:
         st.plotly_chart(
@@ -325,6 +441,7 @@ with tabs[1]:
 
 with tabs[2]:
     st.subheader("Team/User Insights")
+    st.caption("Cohorts are joined from `employees.csv` by telemetry user email.")
     by_practice = metrics["usage_by_practice"]
     by_level = metrics["usage_by_level"]
     by_location = metrics["usage_by_location"]
@@ -380,6 +497,7 @@ with tabs[2]:
 
 with tabs[3]:
     st.subheader("Tool Behavior")
+    st.caption("Acceptance rate is accepted tool decisions / tool decisions; success rate is successful tool results / tool results.")
     top_tools = tools[:12]
     c1, c2 = st.columns(2)
     with c1:
@@ -425,6 +543,7 @@ with tabs[3]:
 
 with tabs[4]:
     st.subheader("Reliability")
+    st.caption("API error rate is API errors / API requests after filters are applied.")
     error_summary = errors["summary"]
     e1, e2, e3, e4 = st.columns(4)
     e1.metric("API errors", fmt_int(error_summary["api_errors"]))
@@ -462,6 +581,7 @@ with tabs[4]:
 
 with tabs[5]:
     st.subheader("Environment")
+    st.caption("Environment values come from normalized event resource and common fields.")
     c1, c2, c3 = st.columns(3)
     with c1:
         st.plotly_chart(
