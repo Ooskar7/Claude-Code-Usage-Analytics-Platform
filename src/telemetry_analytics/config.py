@@ -23,7 +23,7 @@ def _path_from_env(name: str, default: str) -> Path:
 
 def get_settings() -> Settings:
     return Settings(
-        db_path=_path_from_env("TELEMETRY_DB_PATH", "data/warehouse/telemetry.duckdb"),
+        db_path=_path_from_env("TELEMETRY_DB_PATH", "data/processed/telemetry.duckdb"),
         raw_dir=_path_from_env("TELEMETRY_RAW_DIR", "data/raw"),
         sample_dir=_path_from_env("TELEMETRY_SAMPLE_DIR", "data/sample"),
     )

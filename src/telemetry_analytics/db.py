@@ -28,3 +28,15 @@ def initialize_schema(conn: duckdb.DuckDBPyConnection) -> None:
 
 def fetch_one(conn: duckdb.DuckDBPyConnection, sql: str, params: list[Any] | None = None) -> tuple[Any, ...]:
     return conn.execute(sql, params or []).fetchone()
+
+
+def table_exists(conn: duckdb.DuckDBPyConnection, table_name: str) -> bool:
+    row = conn.execute(
+        """
+        SELECT count(*)
+        FROM information_schema.tables
+        WHERE table_schema = 'main' AND table_name = ?
+        """,
+        [table_name],
+    ).fetchone()
+    return bool(row and row[0])

@@ -9,6 +9,8 @@ __pycache__/
 data/raw/*
 data/sample/*
 data/warehouse/*
+data/processed/*
 !data/raw/.gitkeep
 !data/sample/.gitkeep
 !data/warehouse/.gitkeep
+!data/processed/.gitkeep

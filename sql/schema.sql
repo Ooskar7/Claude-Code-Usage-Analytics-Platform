@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS raw_log_batches (
     partition_month INTEGER,
     partition_day INTEGER,
     raw_json JSON NOT NULL,
-    loaded_at_utc TIMESTAMP DEFAULT now()
+    loaded_at_utc TIMESTAMPTZ DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS raw_log_events (
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS raw_log_events (
     raw_log_event_json JSON NOT NULL,
     parse_status VARCHAR NOT NULL,
     parse_error VARCHAR,
-    loaded_at_utc TIMESTAMP DEFAULT now()
+    loaded_at_utc TIMESTAMPTZ DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS events (
@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS events (
     log_event_id VARCHAR NOT NULL,
     event_type VARCHAR NOT NULL,
     event_name VARCHAR,
-    event_timestamp_utc TIMESTAMP,
+    event_timestamp_utc TIMESTAMPTZ,
     session_id VARCHAR,
     organization_id VARCHAR,
     user_email VARCHAR,
@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS events (
     user_serial VARCHAR,
     attributes_json JSON NOT NULL,
     resource_json JSON NOT NULL,
-    loaded_at_utc TIMESTAMP DEFAULT now()
+    loaded_at_utc TIMESTAMPTZ DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS api_requests (

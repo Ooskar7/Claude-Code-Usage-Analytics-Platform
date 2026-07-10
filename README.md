@@ -8,10 +8,22 @@ Streamlit and DuckDB analytics platform for nested Claude Code telemetry logs.
 make dev
 ```
 
-The app reads `TELEMETRY_DB_PATH`, defaulting to `data/warehouse/telemetry.duckdb`. Initialize an empty DuckDB warehouse with:
+The app reads `TELEMETRY_DB_PATH`, defaulting to `data/processed/telemetry.duckdb`. Initialize an empty DuckDB warehouse with:
 
 ```bash
 make init-db
+```
+
+Load generated telemetry into DuckDB:
+
+```bash
+make ingest
+```
+
+For faster local verification against the small generated dataset:
+
+```bash
+make ingest-sample
 ```
 
 ## Dataset Commands
@@ -55,7 +67,7 @@ src/telemetry_analytics/     Ingestion, normalization, metrics, and DB code
 tests/                       Focused parser/model contract tests
 data/raw/                    Large generated local telemetry data
 data/sample/                 Small generated local telemetry data
-data/warehouse/              Local DuckDB files
+data/processed/              Local DuckDB files
 ```
 
 The normalized model preserves raw records before coercion and exposes typed analytical tables:

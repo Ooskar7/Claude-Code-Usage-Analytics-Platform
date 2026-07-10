@@ -4,6 +4,7 @@ import argparse
 
 from telemetry_analytics.config import get_settings
 from telemetry_analytics.db import connect, initialize_schema
+from telemetry_analytics.storage.duckdb_store import refresh_database
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -12,6 +13,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     init_db = subcommands.add_parser("init-db", help="Create the DuckDB normalized schema")
     init_db.add_argument("--db-path", default=None, help="DuckDB database path")
+
+    ingest = subcommands.add_parser("ingest", help="Refresh DuckDB from generated telemetry files")
+    ingest.add_argument("--telemetry-path", default=None, help="Path to telemetry_logs.jsonl")
+    ingest.add_argument("--employees-path", default=None, help="Path to employees.csv")
+    ingest.add_argument("--db-path", default=None, help="DuckDB database path")
 
     return parser
 
@@ -26,6 +32,18 @@ def main(argv: list[str] | None = None) -> int:
         with connect(db_path) as conn:
             initialize_schema(conn)
         print(f"Initialized DuckDB schema at {db_path}")
+        return 0
+
+    if args.command == "ingest":
+        db_path = args.db_path or settings.db_path
+        telemetry_path = args.telemetry_path or settings.raw_dir / "telemetry_logs.jsonl"
+        employees_path = args.employees_path or settings.raw_dir / "employees.csv"
+        summary = refresh_database(db_path, telemetry_path, employees_path)
+        print(f"Refreshed DuckDB database at {summary.db_path}")
+        for table_name, row_count in summary.row_counts.items():
+            print(f"  {table_name}: {row_count}")
+        print(f"  parse_errors: {summary.parse_errors}")
+        print(f"  normalization_errors: {summary.normalization_errors}")
         return 0
 
     parser.error(f"Unsupported command: {args.command}")
