@@ -21,6 +21,10 @@ Raw data remains available in `raw_log_batches`, `raw_log_events`, `attributes_j
 
 DuckDB is the local warehouse. The schema contract lives in `sql/schema.sql` and mirrors the normalized model described by `AGENTS.md` and the `telemetry-analysis` skill.
 
+## Metrics
+
+`telemetry_analytics.metrics.duckdb_metrics` contains reusable DuckDB-backed metric functions. Functions return plain Python dictionaries or lists of dictionaries, keep rate denominators explicit in metric names, and do not depend on Streamlit.
+
 ## Presentation
 
 Streamlit pages are grouped by decision audience:
