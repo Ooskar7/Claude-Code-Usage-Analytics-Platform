@@ -21,13 +21,16 @@ The repository includes the required agent setup:
 
 No secrets or external APIs are required.
 
-## Quick Start
+
+## Install dependencies
 
 Install dependencies once from a fresh checkout:
 
 ```bash
 make install-deps
 ```
+
+## Quick Start
 
 Run the full local demo:
 
